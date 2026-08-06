@@ -17,7 +17,7 @@
 
 import json  # noqa: TID251
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 from urllib.error import URLError
@@ -2015,7 +2015,9 @@ def test_update_recipient_to_slack_v2_no_slack_recipients_is_noop(
 def test_update_query_context_wraps_screenshot_failure(mocker: MockerFixture) -> None:
     """_update_query_context wraps ScreenshotFailedError as CsvFailedError."""
     schedule = mocker.Mock(spec=ReportSchedule)
-    state = BaseReportState(schedule, datetime.utcnow(), uuid4())
+    state = BaseReportState(
+        schedule, datetime.now(timezone.utc).replace(tzinfo=None), uuid4()
+    )
     state._report_schedule = schedule
     mocker.patch.object(
         state,
@@ -2031,7 +2033,9 @@ def test_update_query_context_wraps_screenshot_failure_xlsx(
 ) -> None:
     """_update_query_context surfaces the caller's error class (XLSX, not CSV)."""
     schedule = mocker.Mock(spec=ReportSchedule)
-    state = BaseReportState(schedule, datetime.utcnow(), uuid4())
+    state = BaseReportState(
+        schedule, datetime.now(timezone.utc).replace(tzinfo=None), uuid4()
+    )
     state._report_schedule = schedule
     mocker.patch.object(
         state,
@@ -2045,7 +2049,9 @@ def test_update_query_context_wraps_screenshot_failure_xlsx(
 def test_update_query_context_wraps_screenshot_timeout(mocker: MockerFixture) -> None:
     """_update_query_context wraps ScreenshotTimeout as CsvFailedError."""
     schedule = mocker.Mock(spec=ReportSchedule)
-    state = BaseReportState(schedule, datetime.utcnow(), uuid4())
+    state = BaseReportState(
+        schedule, datetime.now(timezone.utc).replace(tzinfo=None), uuid4()
+    )
     state._report_schedule = schedule
     mocker.patch.object(
         state,
@@ -2065,7 +2071,9 @@ def test_create_log_stale_data_raises_unexpected_error(mocker: MockerFixture) ->
     schedule.last_value_row_json = None
     schedule.last_state = ReportState.WORKING
 
-    state = BaseReportState(schedule, datetime.utcnow(), uuid4())
+    state = BaseReportState(
+        schedule, datetime.now(timezone.utc).replace(tzinfo=None), uuid4()
+    )
     state._report_schedule = schedule
 
     mock_db = mocker.patch("superset.commands.report.execute.db")
@@ -2120,7 +2128,9 @@ def _make_notification_state(
 
     schedule.extra = {}
 
-    state = BaseReportState(schedule, datetime.utcnow(), uuid4())
+    state = BaseReportState(
+        schedule, datetime.now(timezone.utc).replace(tzinfo=None), uuid4()
+    )
     state._report_schedule = schedule
 
     # Stub helpers that _get_notification_content calls
@@ -2267,7 +2277,7 @@ def _make_state_instance(
     schedule.last_state = last_state
     schedule.grace_period = grace_period
     schedule.working_timeout = working_timeout
-    schedule.last_eval_dttm = datetime.utcnow()
+    schedule.last_eval_dttm = datetime.now(timezone.utc).replace(tzinfo=None)
     schedule.name = "Test"
     schedule.editors = []
     schedule.recipients = []
@@ -2281,7 +2291,7 @@ def _make_state_instance(
     schedule.retry_notify_owners = True
     schedule.retry_notify_recipients = False
 
-    instance = cls(schedule, datetime.utcnow(), uuid4())
+    instance = cls(schedule, datetime.now(timezone.utc).replace(tzinfo=None), uuid4())
     instance._report_schedule = schedule
     return instance
 
@@ -2292,7 +2302,9 @@ def test_working_state_timeout_raises_timeout_error(mocker: MockerFixture) -> No
     mocker.patch.object(state, "is_on_working_timeout", return_value=True)
 
     mock_log = mocker.Mock()
-    mock_log.end_dttm = datetime.utcnow() - timedelta(hours=2)
+    mock_log.end_dttm = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+        hours=2
+    )
     mock_log.uuid = uuid4()
     mocker.patch(
         "superset.commands.report.execute.ReportScheduleDAO.find_last_entered_working_log",
@@ -2340,7 +2352,9 @@ def test_working_timeout_replay_delegates_single_terminal_update(
     working_log = mocker.Mock()
     working_log.uuid = state._execution_id
     working_log.state = ReportState.WORKING
-    working_log.end_dttm = datetime.utcnow() - timedelta(minutes=20)
+    working_log.end_dttm = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+        minutes=20
+    )
     mocker.patch(
         "superset.commands.report.execute.ReportScheduleDAO.find_last_entered_working_log",
         return_value=working_log,
@@ -2372,7 +2386,9 @@ def test_stale_recovery_delegates_terminal_update_without_delivery(
     working_log.uuid = uuid4()
     working_log.state = ReportState.WORKING
     working_log.error_message = None
-    working_log.end_dttm = datetime.utcnow() - timedelta(minutes=20)
+    working_log.end_dttm = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+        minutes=20
+    )
     mocker.patch(
         "superset.commands.report.execute.ReportScheduleDAO.find_last_entered_working_log",
         return_value=working_log,
@@ -2410,7 +2426,9 @@ def test_report_working_state_recovery_is_bounded_by_execution_budget(
         working_timeout=3600,
     )
     working_log = mocker.Mock()
-    working_log.end_dttm = datetime.utcnow() - timedelta(minutes=20)
+    working_log.end_dttm = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+        minutes=20
+    )
     mocker.patch(
         "superset.commands.report.execute.ReportScheduleDAO.find_last_entered_working_log",
         return_value=working_log,
@@ -2624,7 +2642,9 @@ def test_state_machine_unknown_state_raises_not_found(
     # Use a string that isn't in any state class's current_states
     schedule.last_state = "NONEXISTENT_STATE"
 
-    sm = ReportScheduleStateMachine(uuid4(), schedule, datetime.utcnow())
+    sm = ReportScheduleStateMachine(
+        uuid4(), schedule, datetime.now(timezone.utc).replace(tzinfo=None)
+    )
     with pytest.raises(ReportScheduleStateNotFoundError):
         sm.run()
 
@@ -2658,7 +2678,9 @@ def test_create_log_success_commits(mocker: MockerFixture) -> None:
     schedule.last_value_row_json = '{"col": 42}'
     schedule.last_state = ReportState.SUCCESS
 
-    state = BaseReportState(schedule, datetime.utcnow(), uuid4())
+    state = BaseReportState(
+        schedule, datetime.now(timezone.utc).replace(tzinfo=None), uuid4()
+    )
     state._report_schedule = schedule
 
     mock_db = mocker.patch("superset.commands.report.execute.db")
@@ -2695,7 +2717,7 @@ def test_create_log_promotes_same_execution_working_row_without_duplicate(
     log_cls = mocker.patch("superset.commands.report.execute.ReportExecutionLog")
     state = BaseReportState(
         schedule,
-        datetime.utcnow(),
+        datetime.now(timezone.utc).replace(tzinfo=None),
         execution_id,
     )
 
@@ -2754,7 +2776,9 @@ def test_alert_log_context_fallback_is_self_identifying(
     schedule.dashboard_id = None
     schedule.chart_id = 19495
 
-    state = BaseReportState(schedule, datetime.utcnow(), execution_id)
+    state = BaseReportState(
+        schedule, datetime.now(timezone.utc).replace(tzinfo=None), execution_id
+    )
 
     context = state._log_context
     assert "capture_kind=alert" in context
@@ -3043,7 +3067,9 @@ def test_get_url_raises_when_target_chart_soft_deleted(
     report_schedule.dashboard_id = None
     report_schedule.dashboard = None
 
-    state = BaseReportState(report_schedule, datetime.utcnow(), uuid4())
+    state = BaseReportState(
+        report_schedule, datetime.now(timezone.utc).replace(tzinfo=None), uuid4()
+    )
     with pytest.raises(ReportScheduleTargetChartDeletedError):
         state._get_url()
 
@@ -3066,7 +3092,9 @@ def test_get_url_raises_when_target_dashboard_soft_deleted(
     report_schedule.dashboard_id = 7
     report_schedule.dashboard = None
 
-    state = BaseReportState(report_schedule, datetime.utcnow(), uuid4())
+    state = BaseReportState(
+        report_schedule, datetime.now(timezone.utc).replace(tzinfo=None), uuid4()
+    )
     with pytest.raises(ReportScheduleTargetDashboardDeletedError):
         state._get_url()
 
@@ -3087,7 +3115,9 @@ def test_get_url_uses_valid_chart_with_stale_dashboard_reference(
         return_value="/chart",
     )
 
-    state = BaseReportState(report_schedule, datetime.utcnow(), uuid4())
+    state = BaseReportState(
+        report_schedule, datetime.now(timezone.utc).replace(tzinfo=None), uuid4()
+    )
 
     assert state._get_url() == "/chart"
     get_url_path.assert_called_once_with(
@@ -3113,7 +3143,9 @@ def test_get_dashboard_urls_raises_when_target_dashboard_soft_deleted(
     report_schedule.dashboard_id = 7
     report_schedule.dashboard = None
 
-    state = BaseReportState(report_schedule, datetime.utcnow(), uuid4())
+    state = BaseReportState(
+        report_schedule, datetime.now(timezone.utc).replace(tzinfo=None), uuid4()
+    )
     with pytest.raises(ReportScheduleTargetDashboardDeletedError):
         state.get_dashboard_urls()
 
