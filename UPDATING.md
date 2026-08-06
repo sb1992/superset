@@ -24,6 +24,21 @@ assists people when migrating to a new version.
 
 ## Next
 
+### JWT `sub` claims are verified again
+
+Superset no longer ships `JWT_VERIFY_SUB = False`, so Flask-JWT-Extended's
+default applies and the `sub` claim of API tokens must be a string, per
+RFC 7519 §4.1.2. The setting existed because Flask-AppBuilder used to put the
+numeric user id in `sub`; the pinned `flask-appbuilder` casts the identity to a
+string in both the login and refresh paths, so tokens minted by
+`/api/v1/security/login` and `/api/v1/security/refresh` keep working.
+
+Access and refresh tokens issued by an older Flask-AppBuilder carry a numeric
+`sub` and are now rejected with a 422; clients holding one must log in again.
+Deployments that mint their own tokens with a numeric `sub` can set
+`JWT_VERIFY_SUB = False` in `superset_config.py` to restore the previous
+behavior.
+
 ### Scheduled report execution now enforces one application deadline
 
 Scheduled report (not alert) executions are now governed by a single

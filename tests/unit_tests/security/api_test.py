@@ -17,8 +17,11 @@
 from typing import Any
 
 import pytest
+from flask_jwt_extended import create_access_token, decode_token
+from jwt.exceptions import InvalidSubjectError
 from marshmallow import ValidationError
 
+from superset import security_manager
 from superset.extensions import csrf
 from superset.security.api import RlsRuleSchema
 
@@ -119,6 +122,64 @@ def test_security_api_trailing_slash_matches_route_ownership(client: Any) -> Non
     )
     assert response.status_code == 308
     assert response.headers["Location"].endswith("/api/v1/security/guest_token/")
+
+
+def test_jwt_sub_verification_enabled_by_default(app: Any, app_context: None) -> None:
+    """Superset does not relax Flask-JWT-Extended's string ``sub`` verification."""
+    assert app.config["JWT_VERIFY_SUB"] is True
+
+
+def test_login_and_refresh_issue_string_sub_tokens(
+    app: Any, client: Any, app_context: None
+) -> None:
+    """``/api/v1/security/login`` and ``/refresh`` mint tokens with a string ``sub``.
+
+    Flask-AppBuilder casts the identity to a string when generating tokens
+    (dpgaspar/Flask-AppBuilder#2321), so the tokens satisfy the RFC 7519 §4.1.2
+    ``sub`` type that PyJWT >= 2.10 enforces. Both tokens are decoded through
+    Flask-JWT-Extended, which applies the same verification the API does.
+    """
+    username = "jwt_sub_user"
+    user = security_manager.find_user(username=username) or security_manager.add_user(
+        username=username,
+        first_name="Jwt",
+        last_name="Sub",
+        email=f"{username}@example.com",
+        role=security_manager.find_role("Admin"),
+        password="general",  # noqa: S106
+    )
+    assert user
+
+    response = client.post(
+        "/api/v1/security/login",
+        json={
+            "username": username,
+            "password": "general",
+            "provider": "db",
+            "refresh": True,
+        },
+    )
+    assert response.status_code == 200
+    access_token = response.json["access_token"]
+    refresh_token = response.json["refresh_token"]
+
+    response = client.post(
+        "/api/v1/security/refresh",
+        headers={"Authorization": f"Bearer {refresh_token}"},
+    )
+    assert response.status_code == 200
+    refreshed_token = response.json["access_token"]
+
+    for token in (access_token, refresh_token, refreshed_token):
+        assert isinstance(decode_token(token)["sub"], str)
+
+
+def test_numeric_sub_token_fails_verification(app: Any, app_context: None) -> None:
+    """A token minted with a numeric ``sub`` is rejected, as PyJWT requires."""
+    token = create_access_token(identity=1)
+
+    with pytest.raises(InvalidSubjectError):
+        decode_token(token)
 
 
 def test_rls_rule_schema_accepts_dataset_scoped_rule() -> None:
