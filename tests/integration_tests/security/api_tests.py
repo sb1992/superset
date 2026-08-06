@@ -21,6 +21,7 @@ import jwt
 import pytest
 
 from flask.ctx import AppContext
+from flask_jwt_extended import create_access_token
 from flask_wtf.csrf import generate_csrf
 from superset import db, security_manager
 from superset.daos.dashboard import EmbeddedDashboardDAO
@@ -150,6 +151,77 @@ class TestSecurityCsrfApi(SupersetTestCase):
         )
         assert response.status_code == 200
         assert "access_token" in response.json
+
+    def test_login_refresh_and_authenticated_call(self):
+        """
+        Security API: Tokens carry a string ``sub`` and pass strict verification
+        """
+        assert self.app.config["JWT_VERIFY_SUB"] is True
+
+        protected_uri = f"api/v1/{self.resource_name}/roles/"
+        self.assert401(self.client.get(protected_uri))
+
+        response = self.client.post(
+            f"api/v1/{self.resource_name}/login",
+            json={
+                "username": ADMIN_USERNAME,
+                "password": "general",
+                "provider": "db",
+                "refresh": True,
+            },
+        )
+        assert response.status_code == 200
+        access_token = response.json["access_token"]
+        refresh_token = response.json["refresh_token"]
+        for token in (access_token, refresh_token):
+            assert isinstance(
+                jwt.decode(token, options={"verify_signature": False})["sub"], str
+            )
+
+        response = self.client.post(
+            f"api/v1/{self.resource_name}/refresh",
+            headers={"Authorization": f"Bearer {refresh_token}"},
+        )
+        assert response.status_code == 200
+        refreshed_token = response.json["access_token"]
+        assert isinstance(
+            jwt.decode(refreshed_token, options={"verify_signature": False})["sub"], str
+        )
+
+        for token in (access_token, refreshed_token):
+            response = self.client.get(
+                protected_uri, headers={"Authorization": f"Bearer {token}"}
+            )
+            self.assert200(response)
+
+    def test_numeric_sub_token_rejected(self):
+        """
+        Security API: A token minted with a numeric ``sub`` is rejected
+        """
+        response = self.client.get(
+            f"api/v1/{self.resource_name}/roles/",
+            headers={"Authorization": f"Bearer {self._numeric_sub_access_token()}"},
+        )
+        assert response.status_code == 422
+
+    @with_config({"JWT_VERIFY_SUB": False})
+    def test_numeric_sub_token_accepted_when_verification_opted_out(self):
+        """
+        Security API: Operators can opt out of string ``sub`` verification
+        """
+        response = self.client.get(
+            f"api/v1/{self.resource_name}/roles/",
+            headers={"Authorization": f"Bearer {self._numeric_sub_access_token()}"},
+        )
+        self.assert200(response)
+
+    def _numeric_sub_access_token(self) -> str:
+        """
+        Mint an access token whose ``sub`` claim is the numeric user id, as
+        Flask-AppBuilder did before it started casting the identity to a string.
+        """
+        with self.app.test_request_context():
+            return create_access_token(identity=self.get_user(ADMIN_USERNAME).id)
 
 
 class TestSecurityGuestTokenApi(SupersetTestCase):
