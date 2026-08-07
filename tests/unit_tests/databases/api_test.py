@@ -347,8 +347,8 @@ def test_database_connection(
     }
 
 
-@pytest.mark.skip(reason="Works locally but fails on CI")
 def test_update_with_password_mask(
+    mocker: MockerFixture,
     app: Any,
     session: Session,
     client: Any,
@@ -380,8 +380,12 @@ def test_update_with_password_mask(
     db.session.add(database)
     db.session.commit()
 
-    client.put(
-        "/api/v1/database/1",
+    # permission syncing needs an authenticated user and a live connection to the
+    # analytical database, neither of which exist in unit tests
+    mocker.patch("superset.commands.database.update.SyncPermissionsCommand")
+
+    response = client.put(
+        f"/api/v1/database/{database.id}",
         json={
             "encrypted_extra": json.dumps(
                 {
@@ -393,7 +397,9 @@ def test_update_with_password_mask(
             ),
         },
     )
-    database = db.session.query(Database).one()
+    assert response.status_code == 200
+
+    database = db.session.query(Database).filter_by(id=database.id).one()
     assert (
         database.encrypted_extra
         == '{"service_account_info": {"project_id": "yellow-unicorn-314419", "private_key": "SECRET"}}'  # noqa: E501
