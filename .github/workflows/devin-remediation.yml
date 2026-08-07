@@ -26,7 +26,7 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Dispatch Devin session
-        uses: sb1992/devin-superset-automation@7f5cccfc26930272fed2f7550b9b074352878e28
+        uses: sb1992/devin-superset-automation@513580bc02e1529c4fb69fc4e320ad36a8587bf8
         with:
           command: dispatch
           issue-number: ${{ github.event.issue.number }}
@@ -60,7 +60,7 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Reconcile active sessions
-        uses: sb1992/devin-superset-automation@7f5cccfc26930272fed2f7550b9b074352878e28
+        uses: sb1992/devin-superset-automation@513580bc02e1529c4fb69fc4e320ad36a8587bf8
         with:
           command: reconcile
         env:
