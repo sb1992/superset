@@ -40,6 +40,7 @@ jobs:
           DEVIN_TARGET_REPO: ${{ vars.DEVIN_TARGET_REPO }}
           DEVIN_TARGET_BRANCH: ${{ vars.DEVIN_TARGET_BRANCH }}
           DEVIN_CI_ALLOWLIST: ${{ vars.DEVIN_CI_ALLOWLIST }}
+          DEVIN_MAX_ACU: ${{ vars.DEVIN_MAX_ACU }}
       - name: Upload dispatch report
         if: always()
         uses: actions/upload-artifact@v4
